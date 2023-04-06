@@ -26,7 +26,7 @@ module.exports = {
     },
     // Update user
     updateUser(req, res) {
-        User.findOneAndUpdate({ __id: req.params.userId },
+        User.findOneAndUpdate({ _id: req.params.userId },
             { $set: req.body },
             { runValidators: true, new: true }
         )
@@ -46,7 +46,16 @@ module.exports = {
             .then((userData) => 
                 !userData
                     ? res.status(404).json({ message: 'User not found.' })
-                    : res.json({ message: 'User has been Deleted.' })
+                    : Thought.deleteMany({ _id: { $in: userData.thoughts }}
+                    ).then((userData) => 
+                        !userData
+                            ? res.status(404).json({ message: 'User does not have any thoughts.'})
+                            : res.json({ message: "User and associated Thoughts have been Deleted."})
+                        ).catch((err) => {
+                            console.log(err);
+                            res.status(500).json(err);
+                        })
+
             )
             .catch((err) => {
                 console.log(err);
@@ -55,7 +64,7 @@ module.exports = {
     },
 
     // Post for friends
-
+    // adds each other into friends lists
     addUserFriends(req, res) {
         User.findOneAndUpdate(
             { _id: req.params.userId},
@@ -65,7 +74,20 @@ module.exports = {
             .then((userData) => 
                 !userData
                     ? res.status(404).json({ message: 'No User exists with this ID.'})
-                    : res.json(userData)
+                    : User.findOneAndUpdate(
+                        { _id: req.params.friendId },
+                        { $addToSet: {friends: req.params.userId} },
+                        {runValidators: true, new: true }
+                    )
+                    .then((userData) => 
+                        !userData
+                            ? res.status(404).json({ message: 'No User exists with this ID.'})
+                            : res.json({ message: "You are now friends."})
+                    )
+                    .catch((err) => {
+                        console.log(err)
+                        res.status(500).json(err);
+                    })
             )
             .catch((err) => {
                 console.log(err);
@@ -79,12 +101,25 @@ module.exports = {
         User.findOneAndUpdate(
             { _id: req.params.userId },
             { $pull: { friends: req.params.friendId } },
-            { new: true }
+            { runValidators: true, new: true }
         )
             .then((userData) => 
                 !userData 
-                    ? res.status(404).json({ message: 'No User exists with this ID.'})
-                    : res.json(userData)
+                    ? res.status(404).json({ message: "No User exists with this ID."})
+                    : User.findByIdAndUpdate(
+                        { _id: req.params.friendId },
+                        { $pull: { friends: req.params.userId } },
+                        { runValidators: true, new: true}
+                    )
+                    .then((userData) => 
+                        !userData
+                            ? res.status(404).json({ message: "No User exists with this ID."})
+                            : res.json({ message: "Friend has been deleted..."})
+                    )
+                    .catch((err) => {
+                        console.log(err);
+                        res.status(500).json(err);
+                    })
             )
             .catch((err) => {
                 console.log(err);
